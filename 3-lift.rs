@@ -289,35 +289,7 @@ mod tests {
             "\nYour result (left) did not match expected output (right) for the given queues:\n{}\n",
             print_queues(queues, capacity));
     }
-    /*
-    #[test]
-    fn test_get_first_up() {
-        // Create a new Lift instance with test data
-        let mut lift = Lift {
-            capacity: 5,
-            queues: HashMap::new(),
-            direction: Direction::Up,
-            inside: HashMap::new(),
-            level: 2,
-            floors_visited: Vec::new(),
-                        // ... (rest of the Lift struct initialization if needed)
-        };
-
-        // Populate the queues with test data
-        lift.queues.insert(1, vec![3, 4]);
-        lift.queues.insert(3, vec![5]);
-        lift.queues.insert(4, vec![5, 6, 7]);
-
-        // Call the get_first_up method
-        let result = lift.get_first_up();
-
-        // Define the expected result
-        let expected = Some(3); // Assuming this is the expected 'up' value based on the test data
-
-        // Assert that the result matches the expected value
-        assert_eq!(result, expected, "The get_first_up method did not return the expected result.");
-    }
- */
+ 
     #[test]
     fn test_up() {
         do_test(&[vec![], vec![], vec![5,5,5],vec![],vec![],vec![],vec![]], 5, &[0, 2, 5, 0]);
@@ -377,24 +349,3 @@ mod tests {
             vec![3]], 4, &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 11, 10, 9, 7, 6, 5, 4, 3, 2, 1, 0, 1, 3, 4, 5, 6, 7, 9, 10, 11, 12, 10, 9, 6, 4, 3, 2, 1, 0, 3, 4, 5, 6, 8, 11, 12, 5, 10, 0]);
     }
 }
-/*
-  left: `[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 11, 10, 9, 7, 6, 5, 4, 3, 2, 1, 3, 4, 5, 6, 7, 9, 10, 11, 12, 10, 9, 6, 4, 3, 2, 1, 0, 3, 4, 5, 6, 8, 10, 11, 12, 5, 10, 0]`,
- right: `[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 11, 10, 9, 7, 6, 5, 4, 3, 2, 1, 0, 1, 3, 4, 5, 6, 7, 9, 10, 11, 12, 10, 9, 6, 4, 3, 2, 1, 0, 3, 4, 5, 6, 8, 11, 12, 5, 10, 0]`: 
-Your result (left) did not match expected output (right) for the given queues:
-
-Lift capacity = 4
-
- Floor    Queue
-  12 .... [3]
-  11 .... [5]
-  10 .... [9, 7, 12, 9, 12]
-   9 .... [2, 11, 12, 2]
-   8 .... []
-   7 .... [11, 2]
-   6 .... [4, 1, 12, 4]
-   5 .... [10]
-   4 .... [1, 0, 12, 6, 3]
-   3 .... [4, 12, 12, 8, 11]
-   2 .... []
-   1 .... [7, 9, 10]
-   0 .... [9, 3, 2, 8, 10] */
