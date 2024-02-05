@@ -1,1 +1,0 @@
-/home/ajp/kDrive/Rust/CodeWars/5kyu/Product_of_consecutive_Fib_numbers/target/debug/Product_of_consecutive_Fib_numbers: /home/ajp/kDrive/Rust/CodeWars/5kyu/Product_of_consecutive_Fib_numbers/src/main.rs
