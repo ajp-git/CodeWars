@@ -1,11 +1,9 @@
-use std::collections::{HashMap, HashSet};
-
+use std::collections::HashSet;
 use itertools::Itertools;
 
 fn next_perfectsq_perm(lower_limit: u32, k: u32) -> u32 {
 
     let mut index:u32=(lower_limit as f32).sqrt() as u32 +1;
-    let mut squares_digits:HashMap<Vec<char>,u32>=HashMap::new();
 
     loop {
         let square=index*index;
@@ -15,8 +13,6 @@ fn next_perfectsq_perm(lower_limit: u32, k: u32) -> u32 {
             if sq*sq == square {
                 let square_txt=format!("{}",square);
                 if ! square_txt.contains('0') {
-                    //println!("possible result {}",square);
-                    //println!("Found a square {} {}", sq, square_txt);
                     let mut squares:HashSet<u32>=HashSet::new();
         
                     square_txt
@@ -39,7 +35,6 @@ fn next_perfectsq_perm(lower_limit: u32, k: u32) -> u32 {
 
                     if squares.len()==k as usize{
                         let max_square=squares.iter().max().unwrap();
-                        println!("Returning {}", max_square);
                         return *max_square;    
                     }
                 }    
@@ -48,8 +43,6 @@ fn next_perfectsq_perm(lower_limit: u32, k: u32) -> u32 {
         }
         index+=1;
     }
-
-    0
 }
 fn main(){
     next_perfectsq_perm(200, 2);
