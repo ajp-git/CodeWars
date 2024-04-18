@@ -1,5 +1,62 @@
+use std::collections::{HashMap, HashSet};
+
+use itertools::Itertools;
+
 fn next_perfectsq_perm(lower_limit: u32, k: u32) -> u32 {
-    todo!()
+
+    let mut index:u32=(lower_limit as f32).sqrt() as u32 +1;
+    let mut squares_digits:HashMap<Vec<char>,u32>=HashMap::new();
+
+    loop {
+        let square=index*index;
+        if square >  lower_limit {
+            let sq:u32 = (square as f32).sqrt() as u32;
+
+            if sq*sq == square {
+                let square_txt=format!("{}",square);
+                if ! square_txt.contains('0') {
+                    //println!("possible result {}",square);
+                    //println!("Found a square {} {}", sq, square_txt);
+                    let mut squares:HashSet<u32>=HashSet::new();
+        
+                    square_txt
+                        .chars()
+                        .permutations(square_txt.len())
+                        .for_each(
+                            |t| {
+                                let val = t
+                                    .iter()
+                                    .collect::<String>()
+                                    .parse::<u32>()
+                                    .unwrap();
+
+                                    let sq=(val as f32).sqrt() as u32;
+                                    if sq*sq==val {                                         
+                                        squares.insert(val);
+                                    }
+                                }
+                        );
+
+                    if squares.len()==k as usize{
+                        let max_square=squares.iter().max().unwrap();
+                        println!("Returning {}", max_square);
+                        return *max_square;    
+                    }
+                }    
+            }
+    
+        }
+        index+=1;
+    }
+
+    0
+}
+fn main(){
+    next_perfectsq_perm(200, 2);
+    next_perfectsq_perm(100, 2);
+    next_perfectsq_perm(100, 3);
+    next_perfectsq_perm(100, 4);
+    next_perfectsq_perm(3550000, 5);
 }
 
 #[cfg(test)]
