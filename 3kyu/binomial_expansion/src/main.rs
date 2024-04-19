@@ -1,14 +1,20 @@
 use regex::Regex;
 
 
-fn expand_binomial(expr: &str) -> String {
+fn expand(expr: &str) -> String {
 
-    let re_binomial=Regex::new(r"\((-?\d*)(\w)([\-\+]\d*)\)\^(\d+)").unwrap();
+    let re_binomial=Regex::new(r"\((-?\d*)(\w)([\-\+]?\d*)\)\^(\d+)").unwrap();
 
     let parts=re_binomial.captures(expr).unwrap();
 
+    //println!("Parts : {:?}",parts);
+    let first_coef=
+        if parts[1].len()==1 && parts[1].starts_with('-') {
+            -1
+        } else {
+            parts[1].parse::<i32>().unwrap_or(1)
+        };
 
-    let first_coef=parts[1].parse::<i32>().unwrap_or(1);
     let variable=parts[2].to_string();
     //let operation=parts[3].to_string();
     let second_coef =parts[3].parse::<i32>().unwrap_or(0);
@@ -26,25 +32,22 @@ fn expand_binomial(expr: &str) -> String {
         if second_coef>0{
             sign="+";
         }
+        let first_coef_text=
+            match first_coef {
+                -1 => "-".to_string(),
+                1 => "".to_string(),
+                _ => format!("{}",first_coef).to_string(),
+            };
         return format!("{}{}{sign}{}",
-        if first_coef==1 {"".to_string()}else{format!("{}",first_coef)},
-        variable,second_coef);
+        first_coef_text, variable,second_coef);
     }
-    /*
-            5    m    +   3  ^  4";
-            firs var  op seco   n
 
-            625m^4
-            5^4 m^4
-
-            +1500m^3+1350m^2+540m+81")
-     */
     for k in 0..=n {
 
         // 
         let mut bi = binom(n, k);
 //        print!("bi : {bi}");
-        let mut coef = first_coef.pow((n-k)as u32);
+        let coef = first_coef.pow((n-k)as u32);
 //        print!("\tcoef^ : {}",coef);
 //        print!("\tk : {}\n",k);
         bi*=coef;
@@ -53,11 +56,12 @@ fn expand_binomial(expr: &str) -> String {
         if bi>=0 && k>0 {
             sign="+";
         }
-        out.push_str(format!("{}{}", 
+         out.push_str(format!("{}{}", 
             match bi {
                 0 => "".to_string(),
                 _ if n==k => format!("{sign}{bi}"),
-                1 => format!("{variable}"),
+                -1 => format!("-{variable}"),
+                1 => variable.to_string(),
                 _ => format!("{sign}{bi}{variable}"),
             }, 
             if n-k>1 {
@@ -65,14 +69,9 @@ fn expand_binomial(expr: &str) -> String {
             } else {
                 "".to_string()
             }).as_str());
-//        println!("Out :{out}");
-        
-//        if k!=n{
-//             out.push(operation.chars().next().unwrap())}
     }
     out
 }
-
 // Computes a!-b!
 fn binom(n:i32,k:i32) -> i32{
     // k : 0..=n
@@ -85,28 +84,34 @@ fn binom(n:i32,k:i32) -> i32{
 }
 
 fn main() {
-    /*println!(" = {}", expand_binomial("(x+1)^0"));
+    println!(" = {}", expand("(-t+19)^1"));
+    println!(" = {}", expand("(-s+7)^3"));
+    
+    /*
+    println!(" = {}", expand_binomial("(x+1)^0"));
+    println!(" = {}", expand_binomial("(x+1)^0"));
     println!(" = {}", expand_binomial("(x+1)^1"));
     println!(" = {}", expand_binomial("(x+1)^2"));
     println!(" = {}", expand_binomial("(x-1)^0"));
-    println!(" = {}", expand_binomial("(x-1)^1"));*/
+    println!(" = {}", expand_binomial("(-12t+43)^2"));
     println!(" = {}", expand_binomial("(x-1)^2"));
-    /*println!(" = {}", expand_binomial("(2x-1)^3"));
+    println!(" = {}", expand_binomial("(2x-1)^3"));
     println!(" = {}", expand_binomial("(5m+3)^4"));
     println!(" = {}", expand_binomial("(2x-3)^3"));
     println!(" = {}", expand_binomial("(7x-7)^0"));
     println!(" = {}", expand_binomial("(-5m+3)^4"));
     println!(" = {}", expand_binomial("(-2k-3)^3"));
-    println!(" = {}", expand_binomial("(-7x-7)^0"));*/
+    println!(" = {}", expand_binomial("(-7x-7)^0"));
+ */
 }
 
 #[cfg(test)]
 mod tests {
-    use super::expand_binomial;
+    use super::expand;
     use super::binom;
         
     fn dotest(expr: &str, expected: &str) {
-        let actual = expand_binomial(expr);
+        let actual = expand(expr);
         assert!(actual == expected, 
             "With expr = \"{expr}\"\nExpected \"{expected}\" but got \"{actual}\"")
     }
