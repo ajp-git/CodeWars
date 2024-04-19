@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Element {
     C, H, O, B, Br, Cl, F, Mg, N, P, S,
@@ -5,14 +7,20 @@ pub enum Element {
 
 impl Display for Element {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // str of the element symbol.
-        match self {
-            Element::B => Ok("B"),
-            Element::Br => Ok("Br"),
-            Element::C => Ok("C"),
-            Element::Cl => Ok("Cl"),
-            _ => ChemError,
-        }
+        let symbol = match self {
+            Element::B => "B",
+            Element::Br => "Br",
+            Element::C => "C",
+            Element::Cl => "Cl",
+            Element::F => "F",
+            Element::H => "H",
+            Element::Mg => "Mg",
+            Element::N => "N",
+            Element::O => "O",
+            Element::P => "P",
+            Element::S => "S",
+        };
+        write!(f, "{}", symbol)
     }
 }
 
