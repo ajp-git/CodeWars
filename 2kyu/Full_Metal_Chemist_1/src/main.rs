@@ -23,37 +23,32 @@ impl std::fmt::Display for Atom {
 }
 
 #[derive(Debug, Default)]
-pub struct Molecule;
-
-impl From<&'static str> for Molecule {
-    fn from(_value: &'static str) -> Self {
-        todo!()
-    }
+pub struct Molecule{
+    name:String,
+    branch:Vec<Vec<Atom>>,
 }
 
+impl From<&'static str> for Molecule {
+    fn from(value: &'static str) -> Self {
+        Molecule { name: value.to_string(), branch: Vec::new() }
+    }
+} 
+
 impl Molecule {
-    pub fn branch(&mut self, _bs: &[usize]) -> ChemResult<&mut Self> {
-        todo!()
-    }
-
-    pub fn mutate(&mut self, _ms: &[(usize, usize, Element)]) -> ChemResult<&mut Self> {
-        todo!()
-    }
-
     pub fn bond(&mut self, _poses: &[(usize, usize, usize, usize)]) -> ChemResult<&mut Self> {
-        todo!()
+        Err(ChemError::InvalidBond)
     }
 
     pub fn add(&mut self, _els: &[(usize, usize, Element)]) -> ChemResult<&mut Self> {
         todo!()
     }
 
-    pub fn add_chain(&mut self, _nc: usize, _nb: usize, _els: &[Element]) -> ChemResult<&mut Self> {
+    pub fn add_chain(&mut self, _nc:  usize, _nb: usize, _els: &[Element]) -> ChemResult<&mut Self> {
         todo!()
     }
 
     pub fn close(&mut self) -> ChemResult<&mut Self> {
-        todo!()
+        Err(ChemError::NotImplememented)
     }
 
     pub fn unlock(&mut self) -> ChemResult<&mut Self> {
@@ -69,14 +64,40 @@ impl Molecule {
     }
 
     pub fn atoms(&self) -> Vec<&Atom> {
-        todo!()
+        self.branch.iter().flatten().collect()
     }
     
     pub fn name(&self) -> &str {
-        todo!()
+        if self.name.is_empty() {
+            return &""
+        }
+        &self.name
     }
+    pub fn branch(&mut self, bs: &[usize]) -> ChemResult<&mut Self> {
+        
+        bs.iter().for_each(|&f|{ 
+            let mut new_branch:Vec<Atom>=Vec::new();
+            for i in 0..f {
+                new_branch.push(Atom { id: i as usize, element: Element::C });
+            }
+            self.branch.push(new_branch);
+        });
+        Ok(self)
+    }
+
+    pub fn mutate(&mut self, comp:&[u32]) -> Result<(), ChemError> {
+        Err(ChemError::NotImplememented)
+    }
+
+
 }
 
+fn main() {
+    let ref mut biotin = Molecule::from("biotin");
+
+    biotin.branch(&[14,1,1]);
+
+}
 
 mod preloaded;
 

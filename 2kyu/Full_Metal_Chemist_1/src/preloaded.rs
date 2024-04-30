@@ -30,6 +30,7 @@ pub enum ChemError {
     LockedMolecule,
     InvalidBond,
     UnlockedMolecule,
+    NotImplememented,
 }
 
 pub type ChemResult<T> = Result<T, ChemError>;
