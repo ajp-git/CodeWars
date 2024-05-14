@@ -1,0 +1,6 @@
+[package]
+name = "simple_assembler_code_wars"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
