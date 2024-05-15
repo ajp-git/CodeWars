@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::format};
 
 #[derive(Debug, Clone, PartialEq)]
 enum Token {
@@ -33,6 +33,7 @@ struct Interpreter {
     tokens: Vec<Token>,
     expressions: Vec<Expr>,
     token_position: usize,
+    variables: HashMap<String, f32>,
 }
 
 impl Interpreter {
@@ -41,17 +42,19 @@ impl Interpreter {
             tokens: Vec::new(),
             expressions: Vec::new(),
             token_position: 0,
+            variables: HashMap::new(),
         }
     }
 
     fn input(&mut self, input: &str) -> Result<Option<f32>, String> {
         self.tokenise(input)?;
+        println!("Token struct {:?}", self.tokens);
         if let Ok(result) = self.parse() {
             println!("{:?}", result);
             let result = self.evaluate(&result);
 
             println!("Evaluated {:?}", result);
-            return result ;
+            return result;
         }
         Err("Parse not ok".to_string())
     }
@@ -183,12 +186,12 @@ impl Interpreter {
         left
     }
     fn parse_multiplicative_expr(&mut self) -> Expr {
-        let mut left = self.parse_primary_expr();
+        let mut left = self.parse_assignement_expr();
         while let Some(Token::Operator(op)) = self.at() {
             match op {
                 Operator::Multiply | Operator::Divide | Operator::Modulo => {
                     let _ = self.eat();
-                    let right = self.parse_primary_expr();
+                    let right = self.parse_assignement_expr();
                     left = Expr::BinaryOp(Box::new(left.clone()), op, Box::new(right));
                 }
                 _ => {
@@ -198,6 +201,29 @@ impl Interpreter {
         }
         left
     }
+
+    fn parse_assignement_expr(&mut self) -> Expr {
+        let mut left = self.parse_primary_expr();
+        while let Some(ass) = self.at() {
+            match ass {
+                Token::Assignement => match left {
+                    Expr::Identifier(s) => {
+                        let _ = self.eat();
+                        let right = self.parse_primary_expr();
+                        left = Expr::Assignement(s, Box::new(right));
+                    }
+                    _ => {
+                        panic!("Cannot assign something to a value");
+                    }
+                },
+                _ => {
+                    break;
+                }
+            }
+        }
+        left
+    }
+
     fn parse_primary_expr(&mut self) -> Expr {
         let left = self.at().unwrap();
         match left {
@@ -209,11 +235,17 @@ impl Interpreter {
                 self.eat();
                 return Expr::Identifier(s);
             }
+            Token::OpenParent => {
+                self.eat();
+                let result = self.parse_expr();
+                self.eat();
+                return result;
+            }
             _ => panic!("Unexpected Token: {:?}", left),
         }
     }
 
-    fn evaluate(&self, expr: &Expr) -> Result<Option<f32>, String> {
+    fn evaluate(&mut self, expr: &Expr) -> Result<Option<f32>, String> {
         match expr {
             Expr::Number(v) => {
                 return Ok(Some(*v));
@@ -247,6 +279,22 @@ impl Interpreter {
                     return Err(format!("Bad value for operation {:?}", expr));
                 }
             }
+            Expr::Assignement(var, expr) => {
+                if let Ok(v_e1) = self.evaluate(expr) {
+                    let v_e1 = v_e1.unwrap();
+                    self.variables.insert(var.clone(), v_e1);
+                    return Ok(Some(v_e1));
+                } else {
+                    return Err(format!("Error evaluating expression {:?}", expr));
+                }
+            }
+            Expr::Identifier(s) => {
+                if let Some(val) = self.variables.get(s) {
+                    return Ok(Some(*val));
+                }
+                return Err(format!("Variable {:?} not found", s));
+            }
+
             _ => panic!("Invalid operation {:?}", expr),
         }
     }
@@ -255,8 +303,8 @@ impl Interpreter {
 fn main() {
     let mut i = Interpreter::new();
     //assert_eq!(i.input("1 + 1"), Ok(Some(2.0)));
-    i.input("3+1+1*1");
-    //    i.input("fn avg x y => (x + y) / 2");
+    //i.input("x = 13 + (y = 3)");
+    i.input("fn avg x y => (x + y) / 2");
 }
 
 #[test]
