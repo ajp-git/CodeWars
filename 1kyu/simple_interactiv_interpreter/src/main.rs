@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::format, thread::panicking};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
 enum Token {
@@ -11,6 +11,7 @@ enum Token {
     FnOperator,
     Assignement,
     FnCall(String),
+    FunctionDefinition(String),
 }
 
 impl Token {
@@ -36,8 +37,9 @@ enum Expr {
     Identifier(String),
     BinaryOp(Box<Expr>, Operator, Box<Expr>),
     Assignement(String, Box<Expr>),
-    FunctionCall(String, Vec<f32>),
+    FunctionCall(String, Box<Vec<Expr>>),
     FunctionDefinition(String, Vec<String>, Box<Expr>),
+    Nop,
 }
 impl Expr {
     fn get_function_variables(&self) -> Vec<String> {
@@ -55,7 +57,6 @@ impl Expr {
 }
 struct Interpreter {
     tokens: Vec<Token>,
-    expressions: Vec<Expr>,
     variables: HashMap<String, f32>,
     functions: HashMap<String, Expr>,
 }
@@ -64,19 +65,18 @@ impl Interpreter {
     fn new() -> Interpreter {
         Interpreter {
             tokens: Vec::new(),
-            expressions: Vec::new(),
             variables: HashMap::new(),
             functions: HashMap::new(),
         }
     }
 
     fn input(&mut self, input: &str) -> Result<Option<f32>, String> {
+        println!("i.input(\"{}\");", input);
         self.tokenise(input)?;
         println!("Token struct {:?}", self.tokens);
         if let Ok(result) = self.parse() {
             println!("{:?}", result);
             let result = self.evaluate(&result);
-
             println!("Evaluated {:?}", result);
             return result;
         }
@@ -84,9 +84,6 @@ impl Interpreter {
     }
 
     fn tokenise(&mut self, input: &str) -> Result<&mut Vec<Token>, String> {
-        let mut in_number = false;
-        let mut in_identifier = false;
-
         let mut input_iter = input.chars().peekable();
 
         let mut ops: HashMap<char, Operator> = HashMap::new();
@@ -108,7 +105,7 @@ impl Interpreter {
                     let mut num = String::new();
                     num.push(c);
                     while let Some(c) = input_iter.peek() {
-                        if c.is_digit(10) || c == &'.' {
+                        if c.is_ascii_digit() || c == &'.' {
                             num.push(input_iter.next().unwrap());
                         } else {
                             break;
@@ -129,7 +126,19 @@ impl Interpreter {
                     if ident == "fn" {
                         self.tokens.push(Token::Fn);
                     } else {
-                        self.tokens.push(Token::Identifier(ident));
+                        if let Some(Token::Fn) = self.tokens.last() {
+                            // Last token is a function declaration
+                            self.tokens.pop();
+                            self.tokens.push(Token::FunctionDefinition(ident));
+                        } else {
+                            if self.functions.iter().filter(|(k, v)| k == &&ident).count() > 0 {
+                                // we found a function declaration with that name
+                                // So it is a function call
+                                self.tokens.push(Token::FnCall(ident));
+                            } else {
+                                self.tokens.push(Token::Identifier(ident));
+                            }
+                        }
                     }
                 }
                 '(' => self.tokens.push(Token::OpenParent),
@@ -166,21 +175,18 @@ impl Interpreter {
 
         while !self.eof() {
             let res = self.parse_expr();
-            println!("{:?}", res);
+            //println!("{:?}", res);
             result.push(res);
         }
         Ok(result[0].clone())
     }
 
-    fn does_variable_exists(&self, name: &str) -> bool {
-        self.variables.contains_key(name)
-    }
     fn eof(&mut self) -> bool {
-        self.tokens.len() == 0
+        self.tokens.is_empty()
     }
 
     fn at(&self) -> Option<Token> {
-        if self.tokens.len() > 0 {
+        if !self.tokens.is_empty() {
             return Some(self.tokens[0].clone());
         }
         None
@@ -236,7 +242,7 @@ impl Interpreter {
                 Token::Assignement => match left {
                     Expr::Identifier(s) => {
                         let _ = self.eat();
-                        let right = self.parse_function_expr();
+                        let right = self.parse_expr(); // Use parse_expr instead of parse_function_expr
                         left = Expr::Assignement(s, Box::new(right));
                     }
                     _ => {
@@ -252,15 +258,13 @@ impl Interpreter {
     }
 
     fn parse_function_expr(&mut self) -> Expr {
-        if self.at() == Some(Token::Fn) {
+        if let Some(Token::FunctionDefinition(fn_name)) = self.at() {
             let mut variables: Vec<String> = Vec::new();
             /* function be like fn avg x y => (x+y)/2 */
             self.eat();
             println!("function declaration");
             /* next token is function name */
-            let fn_name: String = self.at().unwrap().get_string().unwrap();
             println!("function name is {:?}", fn_name);
-            self.eat();
             /* next tokens should be variables, until FnOperator */
             while self.at() != Some(Token::FnOperator) {
                 let var_name: String = self.at().unwrap().get_string().unwrap();
@@ -288,26 +292,31 @@ impl Interpreter {
         match left {
             Token::Number(x) => {
                 self.eat();
-                return Expr::Number(x);
+                Expr::Number(x)
             }
             Token::Identifier(s) => {
                 self.eat();
-                if let Some(Token::Number(_)) = self.at() {
-                    let mut variables: Vec<f32> = Vec::new();
-                    while let Some(Token::Number(arg)) = self.at() {
-                        variables.push(arg);
-                        self.eat();
-                    }
-                    return Expr::FunctionCall(s, variables);
-                } else {
-                    return Expr::Identifier(s);
-                }
+                /* s contains the name of variable or function
+                if it is a function, it means a function call */
+                Expr::Identifier(s)
             }
             Token::OpenParent => {
                 self.eat();
                 let result = self.parse_expr();
                 self.eat();
-                return result;
+                result
+            }
+            Token::FnCall(fn_name) => {
+                self.eat();
+                // get number of arguments of function
+                let mut arguments = Vec::new();
+
+                let called_func = self.functions.get(&fn_name).unwrap();
+                let argcount = called_func.get_function_variables().len();
+                for _ in 0..argcount {
+                    arguments.push(self.parse_expr());
+                }
+                Expr::FunctionCall(fn_name, Box::new(arguments))
             }
             _ => panic!("Unexpected Token: {:?}", left),
         }
@@ -315,36 +324,24 @@ impl Interpreter {
 
     fn evaluate(&mut self, expr: &Expr) -> Result<Option<f32>, String> {
         match expr {
-            Expr::Number(v) => {
-                return Ok(Some(*v));
-            }
+            Expr::Number(v) => Ok(Some(*v)),
             Expr::BinaryOp(e1, op, e2) => {
                 if let Ok(v_e1) = self.evaluate(e1) {
                     if let Ok(v_e2) = self.evaluate(e2) {
                         let v_e1 = v_e1.unwrap();
                         let v_e2 = v_e2.unwrap();
                         match op {
-                            Operator::Add => {
-                                return Ok(Some(v_e1 + v_e2));
-                            }
-                            Operator::Substract => {
-                                return Ok(Some(v_e1 - v_e2));
-                            }
-                            Operator::Divide => {
-                                return Ok(Some(v_e1 / v_e2));
-                            }
-                            Operator::Multiply => {
-                                return Ok(Some(v_e1 * v_e2));
-                            }
-                            Operator::Modulo => {
-                                return Ok(Some(v_e1 % v_e2));
-                            }
+                            Operator::Add => Ok(Some(v_e1 + v_e2)),
+                            Operator::Substract => Ok(Some(v_e1 - v_e2)),
+                            Operator::Divide => Ok(Some(v_e1 / v_e2)),
+                            Operator::Multiply => Ok(Some(v_e1 * v_e2)),
+                            Operator::Modulo => Ok(Some(v_e1 % v_e2)),
                         }
                     } else {
-                        return Err(format!("Bad value for operation {:?}", expr));
+                        Err(format!("Bad value for operation {:?}", expr))
                     }
                 } else {
-                    return Err(format!("Bad value for operation {:?}", expr));
+                    Err(format!("Bad value for operation {:?}", expr))
                 }
             }
             Expr::Assignement(var, expr) => {
@@ -357,51 +354,70 @@ impl Interpreter {
                         ));
                     }
                     self.variables.insert(var.clone(), v_e1);
-                    return Ok(Some(v_e1));
+                    Ok(Some(v_e1))
                 } else {
-                    return Err(format!("Error evaluating expression {:?}", expr));
+                    Err(format!("Error evaluating expression {:?}", expr))
                 }
             }
             Expr::Identifier(s) => {
                 if let Some(val) = self.variables.get(s) {
                     return Ok(Some(*val));
                 }
-                return Err(format!("Variable or function {:?} not found", s));
+                if let Some(function_called) = self.functions.get(s) {
+                    return self.evaluate(&function_called.get_function_code());
+                }
+                Err(format!("Variable or function {:?} not found", s))
             }
 
             Expr::FunctionCall(name, values) => {
-                if let Some(function_called) = self.functions.get(name) {
-                    if function_called.get_function_variables().len() == values.len() {
-                        let variables = function_called.get_function_variables();
-                        for (var, val) in variables.iter().zip(values) {
-                            self.variables.insert(var.clone(), *val);
-                        }
-                        return self.evaluate(&function_called.get_function_code());
-                    } else {
-                        return Err("Bad args countfor function".to_string());
-                    }
+                // Clone the function definition outside of the mutable borrow scope
+                let function_called = if let Some(f) = self.functions.get(name).cloned() {
+                    f
                 } else {
                     return Err("Unknown function".to_string());
+                };
+
+                if function_called.get_function_variables().len() == values.len() {
+                    let variables = function_called.get_function_variables();
+                    let mut local_variables = HashMap::new();
+                    for (var, val_expr) in variables.iter().zip(values.as_ref()) {
+                        if let Ok(Some(val)) = self.evaluate(val_expr) {
+                            local_variables.insert(var.clone(), val);
+                        } else {
+                            return Err(format!("Error evaluating argument {:?}", val_expr));
+                        }
+                    }
+                    // Save the current state of variables
+                    let old_variables = std::mem::replace(&mut self.variables, local_variables);
+                    // Evaluate the function body with the new scope
+                    let result = self.evaluate(&function_called.get_function_code());
+                    // Restore the original variables
+                    self.variables = old_variables;
+                    result
+                } else {
+                    Err("Incorrect number of arguments for function".to_string())
                 }
             }
-
             Expr::FunctionDefinition(name, _, _) => {
                 if self.variables.get(&name.clone()).is_some() {
                     return Err("Function cannot use already defined variable name".to_string());
                 }
                 Ok(None)
             }
-            _ => panic!("Invalid operation {:?}", expr),
+            Expr::Nop => return Ok(Some(0.0)),
         }
     }
 }
 
 fn main() {
     let mut i = Interpreter::new();
-    //assert_eq!(i.input("1 + 1"), Ok(Some(2.0)));
-    //i.input("x = 13 + (y = 3)");
-    i.input("fn avg x y => (x + y) / 2");
-    i.input("avg 2 3");
+    let res = i.input("x = 7");
+    println!("{:?}", res);
+
+    let res = i.input("y = x + 5");
+    println!("{:?}", res);
+    let res = i.input("y");
+    println!("{:?}", res);
 }
 
 #[test]
@@ -439,4 +455,33 @@ fn conflicts() {
     assert_eq!(i.input("fn avg x y => (x + y) / 2"), Ok(None));
     assert!(i.input("fn x => 0").is_err());
     assert!(i.input("avg = 5").is_err());
+}
+
+#[test]
+fn reals() {
+    let mut i = Interpreter::new();
+    i.input("x = 23");
+    i.input("y = 25");
+    i.input("z = 0");
+    i.input("fn one => 1");
+    i.input("fn avg x y => (x + y) / 2");
+    assert_eq!(i.input("one"), Ok(Some(1.0)));
+}
+#[test]
+fn it_should_call_chained_functions() {
+    let mut i = Interpreter::new();
+    i.input("x = 23");
+    i.input("y = 25");
+    i.input("z = 0");
+    i.input("fn avg x y => (x + y) / 2");
+    i.input("fn echo x => x");
+    assert_eq!(i.input("avg echo 4 echo 2"), Ok(Some(3.0)));
+}
+#[test]
+fn it_should_continue_to_function_after_an_error_was_thrown() {
+    let mut i = Interpreter::new();
+    i.input("x = 7");
+    i.input("y");
+    i.input("y = x + 5");
+    assert_eq!(i.input("y"), Ok(Some(12.0)));
 }
