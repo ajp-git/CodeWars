@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, f32::consts::E};
 
 #[derive(Debug, Clone, PartialEq)]
 enum Token {
@@ -71,13 +71,34 @@ impl Interpreter {
     }
 
     fn input(&mut self, input: &str) -> Result<Option<f32>, String> {
+        if input.is_empty() {
+            return Ok(None);
+        }
         println!("i.input(\"{}\");", input);
         self.tokenise(input)?;
+        if self.tokens.is_empty() {
+            return Ok(None);
+        }
+
+        if self.tokens.len() > 1
+            && self.tokens.len()
+                == self
+                    .tokens
+                    .iter()
+                    .filter(|t| matches!(t, Token::Number(_)))
+                    .count()
+        {
+            return Err("Invalid input".to_string());
+        }
+
         println!("Token struct {:?}", self.tokens);
         if let Ok(result) = self.parse() {
-            println!("{:?}", result);
+            //println!("{:?}", result);
             let result = self.evaluate(&result);
-            println!("Evaluated {:?}", result);
+            //println!("Evaluated {:?}", result);
+            if result.is_ok() && self.at().is_some() {
+                return Err("Invalid input".to_string());
+            }
             return result;
         }
         Err("Parse not ok".to_string())
@@ -107,6 +128,8 @@ impl Interpreter {
                     while let Some(c) = input_iter.peek() {
                         if c.is_ascii_digit() || c == &'.' {
                             num.push(input_iter.next().unwrap());
+                        } else if c.is_ascii_alphabetic() {
+                            return Err("Invalid char in number".to_string());
                         } else {
                             break;
                         }
@@ -175,8 +198,11 @@ impl Interpreter {
 
         while !self.eof() {
             let res = self.parse_expr();
+            if res.is_err() {
+                return res;
+            }
             //println!("{:?}", res);
-            result.push(res);
+            result.push(res.unwrap());
         }
         Ok(result[0].clone())
     }
@@ -198,18 +224,27 @@ impl Interpreter {
         res.unwrap()
     }
 
-    fn parse_expr(&mut self) -> Expr {
+    fn parse_expr(&mut self) -> Result<Expr, String> {
         self.parse_additive_expr()
     }
-
-    fn parse_additive_expr(&mut self) -> Expr {
+    fn parse_additive_expr(&mut self) -> Result<Expr, String> {
         let mut left = self.parse_multiplicative_expr();
+        if left.is_err() {
+            return left;
+        }
         while let Some(Token::Operator(op)) = self.at() {
             match op {
                 Operator::Add | Operator::Substract => {
                     let _ = self.eat();
                     let right = self.parse_multiplicative_expr();
-                    left = Expr::BinaryOp(Box::new(left.clone()), op, Box::new(right));
+                    if right.is_err() {
+                        return right;
+                    }
+                    left = Ok(Expr::BinaryOp(
+                        Box::new(left.unwrap().clone()),
+                        op,
+                        Box::new(right.unwrap()),
+                    ));
                 }
                 _ => {
                     break;
@@ -218,14 +253,21 @@ impl Interpreter {
         }
         left
     }
-    fn parse_multiplicative_expr(&mut self) -> Expr {
+    fn parse_multiplicative_expr(&mut self) -> Result<Expr, String> {
         let mut left = self.parse_assignement_expr();
         while let Some(Token::Operator(op)) = self.at() {
             match op {
                 Operator::Multiply | Operator::Divide | Operator::Modulo => {
                     let _ = self.eat();
                     let right = self.parse_assignement_expr();
-                    left = Expr::BinaryOp(Box::new(left.clone()), op, Box::new(right));
+                    if right.is_err() {
+                        return right;
+                    }
+                    left = Ok(Expr::BinaryOp(
+                        Box::new(left.unwrap().clone()),
+                        op,
+                        Box::new(right.unwrap()),
+                    ));
                 }
                 _ => {
                     break;
@@ -234,19 +276,25 @@ impl Interpreter {
         }
         left
     }
-
-    fn parse_assignement_expr(&mut self) -> Expr {
+    fn parse_assignement_expr(&mut self) -> Result<Expr, String> {
         let mut left = self.parse_function_expr();
+        if left.is_err() {
+            return left;
+        }
+
         while let Some(ass) = self.at() {
             match ass {
-                Token::Assignement => match left {
+                Token::Assignement => match left.unwrap() {
                     Expr::Identifier(s) => {
                         let _ = self.eat();
-                        let right = self.parse_expr(); // Use parse_expr instead of parse_function_expr
-                        left = Expr::Assignement(s, Box::new(right));
+                        let right = self.parse_expr();
+                        if right.is_err() {
+                            return right;
+                        } // Use parse_expr instead of parse_function_expr
+                        left = Ok(Expr::Assignement(s, Box::new(right.unwrap())));
                     }
                     _ => {
-                        panic!("Cannot assign something to a value");
+                        return Err("Cannot assign something to a value".to_string());
                     }
                 },
                 _ => {
@@ -256,8 +304,7 @@ impl Interpreter {
         }
         left
     }
-
-    fn parse_function_expr(&mut self) -> Expr {
+    fn parse_function_expr(&mut self) -> Result<Expr, String> {
         if let Some(Token::FunctionDefinition(fn_name)) = self.at() {
             let mut variables: Vec<String> = Vec::new();
             /* function be like fn avg x y => (x+y)/2 */
@@ -277,28 +324,34 @@ impl Interpreter {
             self.eat(); // consume the fnoperator
 
             let fn_code_expr = self.parse_expr();
+            if fn_code_expr.is_err() {
+                return fn_code_expr;
+            }
 
-            let fn_expr =
-                Expr::FunctionDefinition(fn_name.clone(), variables, Box::new(fn_code_expr));
+            let fn_expr = Expr::FunctionDefinition(
+                fn_name.clone(),
+                variables,
+                Box::new(fn_code_expr.unwrap()),
+            );
             self.functions.insert(fn_name, fn_expr.clone());
-            return fn_expr;
+            return Ok(fn_expr);
         } else {
             return self.parse_primary_expr();
         }
     }
-
-    fn parse_primary_expr(&mut self) -> Expr {
+    fn parse_primary_expr(&mut self) -> Result<Expr, String> {
+        //println!("Parse primary expression {:?}", self.tokens);
         let left = self.at().unwrap();
         match left {
             Token::Number(x) => {
                 self.eat();
-                Expr::Number(x)
+                Ok(Expr::Number(x))
             }
             Token::Identifier(s) => {
                 self.eat();
                 /* s contains the name of variable or function
                 if it is a function, it means a function call */
-                Expr::Identifier(s)
+                Ok(Expr::Identifier(s))
             }
             Token::OpenParent => {
                 self.eat();
@@ -307,22 +360,83 @@ impl Interpreter {
                 result
             }
             Token::FnCall(fn_name) => {
-                self.eat();
-                // get number of arguments of function
-                let mut arguments = Vec::new();
+                self.eat(); // Eat the function call token
 
-                let called_func = self.functions.get(&fn_name).unwrap();
-                let argcount = called_func.get_function_variables().len();
-                for _ in 0..argcount {
-                    arguments.push(self.parse_expr());
+                // Retrieve the function definition to know how many arguments are expected
+                let called_function = match self.functions.get(&fn_name) {
+                    Some(func) => func,
+                    None => return Err("Bad function name".to_string()),
+                };
+                let expected_arg_count = called_function.get_function_variables().len();
+
+                // Parse the arguments
+                let mut arguments = Vec::new();
+                for _ in 0..expected_arg_count {
+                    // Stop parsing arguments if we reach the end of the argument list
+                    let res = self.parse_expr()?;
+                    arguments.push(res);
                 }
-                Expr::FunctionCall(fn_name, Box::new(arguments))
+
+                // Check if the number of arguments is correct
+                if arguments.len() < expected_arg_count {
+                    return Err(format!("Not enough arguments for function {}", fn_name));
+                } else if arguments.len() > expected_arg_count {
+                    return Err(format!("Too many arguments for function {}", fn_name));
+                }
+
+                Ok(Expr::FunctionCall(fn_name, Box::new(arguments)))
             }
-            _ => panic!("Unexpected Token: {:?}", left),
+            _ => Err(format!("Unexpected Token: {:?}", left)),
         }
     }
 
+    fn check_arguments(&self, pos: usize) -> (bool, usize) {
+        // We should start with a function call
+        if let Token::FnCall(fn_name) = &self.tokens[pos] {
+            let mut pos = pos + 1;
+            if let Some(fn_expr) = self.functions.get(&fn_name.clone()) {
+                let args_count_needed = fn_expr.get_function_variables().len();
+                let mut args_found = 0;
+                println!("Fn {} needs {} args", fn_name, args_count_needed);
+
+                for _ in 0..args_count_needed {
+                    println!(
+                        "args needed {}, args found {}",
+                        args_count_needed, args_found
+                    );
+                    match self.tokens[pos] {
+                        Token::Number(_) => {
+                            println!("Found number");
+                            args_found += 1;
+                            pos += 1;
+                        }
+                        Token::OpenParent | Token::CloseParent => {}
+                        Token::FnCall(_) => {
+                            println!("Found Fn Call");
+                            let (result, new_pos) = self.check_arguments(pos);
+                            if result == false {
+                                return (false, 0);
+                            }
+                            args_found += 1;
+                            pos = new_pos;
+                        }
+                        _ => return (false, 0),
+                    }
+                }
+                if args_count_needed == args_found {
+                    return (true, pos);
+                } else {
+                    return (false, 0);
+                }
+            }
+        } else {
+            return (false, 0);
+        }
+        return (false, 0);
+    }
+
     fn evaluate(&mut self, expr: &Expr) -> Result<Option<f32>, String> {
+        println!("\nEvaluating {:?}", expr);
         match expr {
             Expr::Number(v) => Ok(Some(*v)),
             Expr::BinaryOp(e1, op, e2) => {
@@ -411,12 +525,15 @@ impl Interpreter {
 
 fn main() {
     let mut i = Interpreter::new();
-    let res = i.input("x = 7");
-    println!("{:?}", res);
+    i.input("x = 23");
+    i.input("y = 25");
+    i.input("z = 0");
+    i.input("fn avg x y => (x + y) / 2");
+    i.input("fn echo x => x");
 
-    let res = i.input("y = x + 5");
-    println!("{:?}", res);
-    let res = i.input("y");
+    let res = i.input("avg echo 7 8");
+    let res = i.input("avg echo 7 8 9");
+
     println!("{:?}", res);
 }
 
@@ -484,4 +601,20 @@ fn it_should_continue_to_function_after_an_error_was_thrown() {
     i.input("y");
     i.input("y = x + 5");
     assert_eq!(i.input("y"), Ok(Some(12.0)));
+}
+#[test]
+fn reals2() {
+    let mut i = Interpreter::new();
+    assert_eq!(i.input("9"), Ok(Some(9.0)));
+    assert!(i.input("1one").is_err());
+}
+#[test]
+fn reals3() {
+    let mut i = Interpreter::new();
+    i.input("x = 23");
+    i.input("y = 25");
+    i.input("z = 0");
+    i.input("fn avg x y => (x + y) / 2");
+    i.input("fn echo x => x");
+    assert!(i.input("avg echo 7 echo 2 echo 4").is_err());
 }
