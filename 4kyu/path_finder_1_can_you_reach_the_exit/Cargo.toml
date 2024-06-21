@@ -1,0 +1,6 @@
+[package]
+name = "path_finder_1_can_you_reach_the_exit"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]

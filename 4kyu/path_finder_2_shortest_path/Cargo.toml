@@ -1,0 +1,6 @@
+[package]
+name = "path_finder_2_shortest_path"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
