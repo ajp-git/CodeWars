@@ -1,5 +1,5 @@
-target/
-Cargo.lock
+**/target/
+**/Cargo.lock
 input/
 cpu/
-._DS_Store
+**/._DS_Store
